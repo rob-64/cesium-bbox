@@ -20,9 +20,11 @@
     })
   });
 
-  var bbox = viewer.entities.add({
+  var labels = viewer.scene.primitives.add(new Cesium.LabelCollection());
+
+  var cameraBbox = viewer.entities.add({
     rectangle: {
-      coordinates: Cesium.Rectangle.fromDegrees(-110.0, 20.0, -80.0, 25.0),
+      coordinates: Cesium.Rectangle.fromDegrees(0, 0, 0, 0),
       material: Cesium.Color.RED.withAlpha(0.5)
     }
   });
@@ -135,15 +137,83 @@
     return Cesium.Rectangle.fromDegrees(west, south, east, north);
   };
 
+  var addVisibleLabels = function(ids) {
+    console.log("visible ids: ", ids);
+    var currentTime = viewer.clock.currentTime;
+    ids.forEach(function(id) {
+      var ent = viewer.entities.getById(id);
+      if (ent && ent.xLabel) {
+        var label = Object.assign({}, ent.xLabel, {
+          position: ent.position.getValue(currentTime)
+        });
+        labels.add(label);
+      }
+    });
+  };
+
   viewer.camera.moveEnd.addEventListener(function() {
+    labels.removeAll();
     var camera = viewer.scene.camera;
     var viewRectangle;
     if (Cesium.SceneMode.SCENE3D === viewer.scene.mode) {
       viewRectangle = camera.computeViewRectangle(Cesium.Ellipsoid.WGS84);
-      bbox.rectangle.coordinates = viewRectangle.clone();
+      cameraBbox.rectangle.coordinates = viewRectangle.clone();
     } else {
       viewRectangle = computeViewRectangle();
-      bbox.rectangle.coordinates = viewRectangle;
+      cameraBbox.rectangle.coordinates = viewRectangle;
+    }
+    if (viewRectangle) {
+      var bbox = [
+        Cesium.Math.toDegrees(viewRectangle.west),
+        Cesium.Math.toDegrees(viewRectangle.south),
+        Cesium.Math.toDegrees(viewRectangle.east),
+        Cesium.Math.toDegrees(viewRectangle.north)
+      ];
+      turfIndex.getVisibleIds(bbox).then(addVisibleLabels);
     }
   });
+
+  var getRandomInRange = function(from, to, fixed) {
+    return (Math.random() * (to - from) + from).toFixed(fixed) * 1;
+    // .toFixed() returns string, so ' * 1' is a trick to convert to number
+  };
+
+  var populate = function() {
+    var pixelOffset = new Cesium.Cartesian2(0, -8);
+    viewer.entities.suspendEvents();
+    var entityMap = {};
+    for (var i = 0; i < 2000; i++) {
+      var lng = getRandomInRange(-180, 180, 5);
+      var lat = getRandomInRange(-90, 90, 5);
+      // console.log("lng: " + lng + " lat: " + lat);
+      // var lng = -Math.random() * 180;
+      // var lat = Math.random() * 180;
+      var id = "test_" + i;
+      entityMap[id] = {
+        id: id,
+        lng: lng,
+        lat: lat
+      };
+      var pos = new Cesium.Cartesian3.fromDegrees(lng, lat);
+      var e = viewer.entities.add({
+        id: id,
+        position: pos,
+        billboard: {
+          image:
+            "https://cesiumjs.org/Cesium/Apps/Sandcastle/images/facility.gif"
+        }
+      });
+      e.xLabel = {
+        text: id,
+        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+        pixelOffset: pixelOffset
+      };
+      // e.label = e.anoleLabel;
+    } // end for loop
+    viewer.entities.resumeEvents();
+    turfIndex.index(entityMap);
+  };
+
+  setTimeout(populate, 1500);
 })();
