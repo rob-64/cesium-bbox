@@ -138,7 +138,7 @@
   };
 
   var addVisibleLabels = function(ids) {
-    console.log("visible ids: ", ids);
+    console.log("visible ids: ", ids.length);
     var currentTime = viewer.clock.currentTime;
     ids.forEach(function(id) {
       var ent = viewer.entities.getById(id);
