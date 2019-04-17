@@ -2,7 +2,7 @@
   var turfIndex = Comlink.proxy(new Worker("turfIndex.js"));
   var viewer = new Cesium.Viewer("cesiumContainer", {
     mapProjection: new Cesium.GeographicProjection(),
-    mapMode2D: Cesium.MapMode2D.ROTATE,
+    // mapMode2D: Cesium.MapMode2D.ROTATE,
     timeline: false,
     geocoder: false,
     baseLayerPicker: false,
@@ -25,119 +25,129 @@
   var cameraBbox = viewer.entities.add({
     rectangle: {
       coordinates: Cesium.Rectangle.fromDegrees(0, 0, 0, 0),
-      material: Cesium.Color.RED.withAlpha(0.5)
+      material: Cesium.Color.RED.withAlpha(0.1)
     }
   });
+
+  var cartesianToLngLat = function(cartesian) {
+    if (cartesian) {
+      var cartographic = Cesium.Cartographic.fromCartesian(
+        cartesian,
+        viewer.scene.globe.ellipsoid
+      );
+      if (cartographic) {
+        return {
+          longitude: Cesium.Math.toDegrees(cartographic.longitude),
+          latitude: Cesium.Math.toDegrees(cartographic.latitude)
+        };
+      }
+    }
+  };
 
   var pickMap = function(x, y) {
     var cartesian = viewer.camera.pickEllipsoid(
       new Cesium.Cartesian2(x, y),
       viewer.scene.globe.ellipsoid
     );
-    if (cartesian) {
-      var cartographic = Cesium.Cartographic.fromCartesian(cartesian);
-      if (cartographic) {
-        return {
-          lng: Cesium.Math.toDegrees(cartographic.longitude),
-          lat: Cesium.Math.toDegrees(cartographic.latitude)
-        };
+    return cartesian;
+  };
+
+  var pickCorner = function(x, y, xStep, yStep, tryLimit, positions) {
+    var lx = x;
+    var ly = y;
+    var corner = pickMap(lx, ly);
+    var tryCount = 0;
+    while (!corner) {
+      ly += yStep;
+      corner = pickMap(x, ly);
+      if (!corner) {
+        lx += xStep;
+        corner = pickMap(lx, y);
+      }
+      if (!corner) {
+        corner = pickMap(lx, ly);
+      }
+      tryCount++;
+      if (tryCount > tryLimit) {
+        break;
       }
     }
+    console.log("corner: ", lx, ly, corner);
+    if (corner) {
+      var cartesian = corner;
+      corner = cartesianToLngLat(corner);
+      corner.cartesian = cartesian;
+      positions.push(corner);
+      console.log("corner: ", corner);
+      return true;
+    }
+    return false;
   };
 
   var computeViewRectangle = function() {
-    var w = viewer.scene.canvas.clientWidth;
-    var h = viewer.scene.canvas.clientHeight;
-    var center = pickMap(w / 2, h / 2);
-    var topLeft = pickMap(0, 0);
-    if (!topLeft) {
-      topLeft = {
-        lng: -180.0,
-        lat: 90.0
-      };
-    }
-    var bottomLeft = pickMap(0, h);
-    if (!bottomLeft) {
-      bottomLeft = {
-        lng: -180.0,
-        lat: -90.0
-      };
-    }
-    var topRight = pickMap(w, 0);
-    if (!topRight) {
-      topRight = {
-        lng: 180.0,
-        lat: 90.0
-      };
-    }
-    var bottomRight = pickMap(w, h);
-    if (!bottomRight) {
-      bottomRight = {
-        lng: 180.0,
-        lat: -90.0
-      };
-    }
-    console.log("topLeft: ", topLeft);
-    console.log("bottomLeft: ", bottomLeft);
-    console.log("topRight: ", topRight);
-    console.log("bottomRight: ", bottomRight);
-    console.log("center: ", center);
-    console.log("===========================");
-    // fix wrap around picks
-    if (center) {
-      if (topLeft.lng > center.lng) {
-        console.debug("fixing topLeft.lng ", topLeft.lng);
-        topLeft.lng = -180.0;
-      }
-      if (bottomLeft.lng > center.lng) {
-        bottomLeft.lng = -180.0;
-      }
-      if (topRight.lng < center.lng) {
-        topRight.lng = 180.0;
-      }
-      if (bottomRight.lng < center.lng) {
-        bottomRight.lng = 180.0;
-      }
-    }
-    // fix when there is one point of a side off the map
-    if (topLeft.lng < bottomLeft.lng) {
-      topLeft.lng = bottomLeft.lng;
-    } else if (bottomLeft.lng < topLeft.lng) {
-      bottomLeft.lng = topLeft.lng;
-    } else if (center && topLeft.lng === -180 && bottomLeft.lng === -180) {
-      var centerLeft = pickMap(0, h / 2);
-      // console.log("centerLeft: ", centerLeft);
-      if (centerLeft && centerLeft.lng < center.lng) {
-        topLeft.lng = centerLeft.lng;
-        bottomLeft.lng = centerLeft.lng;
-      }
-    }
+    try {
+      var w = viewer.scene.canvas.clientWidth;
+      var h = viewer.scene.canvas.clientHeight;
 
-    if (topRight.lng > bottomRight.lng) {
-      topRight.lng = bottomRight.lng;
-    } else if (bottomRight.lng > topRight.lng) {
-      bottomRight.lng = topRight.lng;
-    } else if (center && topRight.lng === 180 && bottomRight.lng === 180) {
-      var centerRight = pickMap(w, h / 2);
-      // console.log("centerRight: ", centerRight);
-      if (centerRight && centerRight.lng > center.lng) {
-        topRight.lng = centerRight.lng;
-        bottomRight.lng = centerRight.lng;
-      }
-    }
+      var positions = [];
 
-    console.log("topLeft: ", topLeft);
-    console.log("bottomLeft: ", bottomLeft);
-    console.log("topRight: ", topRight);
-    console.log("bottomRight: ", bottomRight);
-    var west = Math.min(topLeft.lng, bottomLeft.lng);
-    var south = Math.min(bottomLeft.lat, bottomRight.lat);
-    var east = Math.max(bottomRight.lng, topRight.lng);
-    var north = Math.max(topRight.lat, topLeft.lat);
-    return Cesium.Rectangle.fromDegrees(west, south, east, north);
+      // var center = pickMap(w / 2, h / 2);
+      // if (center) {
+      //   positions.push(center);
+      // }
+
+      var tryLimit = 40;
+      // topLeft screen
+      pickCorner(0, 0, 20, 20, tryLimit, positions);
+      // bottomLeft screen
+      pickCorner(0, h, 20, -20, tryLimit, positions);
+      // bottomRight screen
+      pickCorner(w, h, -20, -20, tryLimit, positions);
+      // topRight screen
+      pickCorner(w, 0, -20, 20, tryLimit, positions);
+
+      var viewRectangle;
+      if (positions.length < 4) {
+        console.warn("using whole world extent");
+        viewRectangle = Cesium.Rectangle.fromDegrees(-180, -90, 180, 90);
+      } else {
+        if (Cesium.SceneMode.SCENE2D === viewer.scene.mode) {
+          if (viewer.scene.mapMode2D === Cesium.MapMode2D.ROTATE) {
+            // camera could be rotated
+          } else {
+            // world wraps, camera CANT rotate
+            console.warn("wrapping occurs");
+
+            // TODO check if topLeft is topLeft
+            var topLeft = positions[0];
+            var topRight = positions[3];
+            if (topLeft.longitude > 100 && topRight.longitude < 100) {
+              console.warn("crosses edge of world");
+            }
+          }
+        } else {
+          // columbus
+        }
+
+        // var topLeft = getTopLeftPosition(positions);
+        // console.log("topLeft: ", topLeft);
+        console.log("positions: ", positions);
+        viewRectangle = Cesium.Rectangle.fromCartesianArray(
+          positions.map(function(p) {
+            return p.cartesian;
+          }),
+          viewer.scene.globe.ellipsoid
+        );
+      }
+      console.log("computeViewRectangle: viewRectangle: ", viewRectangle);
+      return viewRectangle;
+    } catch (ex) {
+      console.error("computeViewRectangle: ", ex);
+    }
   };
 
   var addVisibleLabels = function(ids) {
+    labels.removeAll();
     console.log("visible ids: ", ids.length);
     var currentTime = viewer.clock.currentTime;
     ids.forEach(function(id) {
@@ -146,23 +156,26 @@
         var label = Object.assign({}, ent.xLabel, {
           position: ent.position.getValue(currentTime)
         });
-        labels.add(label);
+        // labels.add(label);
       }
     });
   };
 
   viewer.camera.moveEnd.addEventListener(function() {
-    labels.removeAll();
-    var camera = viewer.scene.camera;
+    if (Cesium.SceneMode.MORPHING === viewer.scene.mode) {
+      // stop it
+      return;
+    }
     var viewRectangle;
     if (Cesium.SceneMode.SCENE3D === viewer.scene.mode) {
-      viewRectangle = camera.computeViewRectangle(Cesium.Ellipsoid.WGS84);
-      cameraBbox.rectangle.coordinates = viewRectangle.clone();
+      viewRectangle = viewer.scene.camera.computeViewRectangle(
+        Cesium.Ellipsoid.WGS84
+      );
     } else {
       viewRectangle = computeViewRectangle();
-      cameraBbox.rectangle.coordinates = viewRectangle;
     }
     if (viewRectangle) {
+      cameraBbox.rectangle.coordinates = viewRectangle;
       var bbox = [
         Cesium.Math.toDegrees(viewRectangle.west),
         Cesium.Math.toDegrees(viewRectangle.south),
@@ -216,4 +229,45 @@
   };
 
   setTimeout(populate, 1500);
+
+  var labelEnt = viewer.entities.add({
+    label: {
+      show: false,
+      showBackground: true,
+      font: "14px monospace",
+      horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+      verticalOrigin: Cesium.VerticalOrigin.TOP,
+      pixelOffset: new Cesium.Cartesian2(15, 0)
+    }
+  });
+
+  var handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  handler.setInputAction(function(movement) {
+    var cartesian = viewer.camera.pickEllipsoid(
+      movement.endPosition,
+      viewer.scene.globe.ellipsoid
+    );
+
+    if (cartesian) {
+      var cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+      var longitudeString = Cesium.Math.toDegrees(
+        cartographic.longitude
+      ).toFixed(2);
+      var latitudeString = Cesium.Math.toDegrees(cartographic.latitude).toFixed(
+        2
+      );
+      // console.log("mouse move end: ", movement.endPosition);
+      labelEnt.position = cartesian;
+      labelEnt.label.show = true;
+      labelEnt.label.text =
+        "Lon: " +
+        ("   " + longitudeString).slice(-7) +
+        "\u00B0" +
+        "\nLat: " +
+        ("   " + latitudeString).slice(-7) +
+        "\u00B0";
+    } else {
+      labelEnt.label.show = false;
+    }
+  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 })();
