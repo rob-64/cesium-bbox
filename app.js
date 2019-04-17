@@ -106,7 +106,7 @@
       bottomLeft.lng = topLeft.lng;
     } else if (center && topLeft.lng === -180 && bottomLeft.lng === -180) {
       var centerLeft = pickMap(0, h / 2);
-      console.log("centerLeft: ", centerLeft);
+      // console.log("centerLeft: ", centerLeft);
       if (centerLeft && centerLeft.lng < center.lng) {
         topLeft.lng = centerLeft.lng;
         bottomLeft.lng = centerLeft.lng;
@@ -119,7 +119,7 @@
       bottomRight.lng = topRight.lng;
     } else if (center && topRight.lng === 180 && bottomRight.lng === 180) {
       var centerRight = pickMap(w, h / 2);
-      console.log("centerRight: ", centerRight);
+      // console.log("centerRight: ", centerRight);
       if (centerRight && centerRight.lng > center.lng) {
         topRight.lng = centerRight.lng;
         bottomRight.lng = centerRight.lng;
