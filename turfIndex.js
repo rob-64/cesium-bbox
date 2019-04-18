@@ -20,19 +20,27 @@
     _entities = {};
   };
 
-  turfIndex.getVisibleIds = function(bbox) {
-    // console.log("inView: ", bbox);
-    var view = turf.bboxPolygon(bbox);
-    console.log("truf view: ", view);
+  turfIndex.getVisibleIds = function(boundingBoxes) {
+    var view2;
+    var view1 = turf.bboxPolygon(boundingBoxes[0]);
+    if (boundingBoxes.length > 1) {
+      view2 = turf.bboxPolygon(boundingBoxes[1]);
+    }
+    console.log("turf views: ", view1, view2);
     var entList = Object.values(_entities);
     console.log("_entities: ", entList.length);
     var visible = [];
     var opts = { ignoreBoundary: true };
     entList.forEach(function(e) {
-      var ptVisible = turf.booleanPointInPolygon(e.point, view, opts);
+      var ptVisible = turf.booleanPointInPolygon(e.point, view1, opts);
       // console.log("ptVisible: ", e, ptVisible);
       if (ptVisible) {
         visible.push(e.id);
+      } else if (view2) {
+        ptVisible = turf.booleanPointInPolygon(e.point, view2, opts);
+        if (ptVisible) {
+          visible.push(e.id);
+        }
       }
     });
     console.log("visible: ", visible.length);
