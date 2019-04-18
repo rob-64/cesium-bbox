@@ -52,6 +52,30 @@
     return cartesian;
   };
 
+  var drawPick = function(x, y) {
+    var can = document.createElement("canvas");
+    var ctx = can.getContext("2d");
+    can.width = 6;
+    can.height = 6;
+    var style = `position:fixed;top:${y}px;left:${x}px;z-index:99;`;
+    can.style = style;
+    can.className = "xpick";
+
+    ctx.rect(0, 0, 6, 6);
+    ctx.fillStyle = "green";
+    ctx.fill();
+    document.body.appendChild(can);
+  };
+
+  var removePicks = function() {
+    var picks = document.querySelectorAll(".xpick");
+    if (picks) {
+      picks.forEach(function(p) {
+        p.remove();
+      });
+    }
+  };
+
   var pickCorner = function(x, y, xStep, yStep, tryLimit, positions) {
     var lx = x;
     var ly = y;
@@ -62,11 +86,25 @@
         break;
       }
       ly += yStep;
+      lx += xStep;
       corner = pickMap(lx, ly);
-      if (!corner) {
-        lx += xStep;
-        corner = pickMap(lx, ly);
+      if (corner) {
+        drawPick(lx, ly);
+        break;
       }
+      var x1 = lx - xStep;
+      corner = pickMap(x1, ly);
+      if (corner) {
+        drawPick(x1, ly);
+        break;
+      }
+      var y1 = ly - yStep;
+      corner = pickMap(lx, y1);
+      if (corner) {
+        drawPick(x1, y1);
+        break;
+      }
+      console.log("lx ly, x1, y1 = ", lx, ly, x1, y1);
       tryCount++;
     }
     if (corner) {
@@ -92,18 +130,23 @@
       //   positions.push(center);
       // }
 
-      var tryLimit = 40;
+      removePicks();
+
+      var pixelStep = 20;
+      var tryLimit = Math.max(w, h) / pixelStep;
+      console.log("tryLimit: ", tryLimit);
       // topLeft screen
-      pickCorner(0, 0, 20, 20, tryLimit, positions);
+      pickCorner(0, 0, pixelStep, pixelStep, tryLimit, positions);
       // bottomLeft screen
-      pickCorner(0, h, 20, -20, tryLimit, positions);
+      pickCorner(0, h, pixelStep, -pixelStep, tryLimit, positions);
       // bottomRight screen
-      pickCorner(w, h, -20, -20, tryLimit, positions);
+      pickCorner(w, h, -pixelStep, -pixelStep, tryLimit, positions);
       // topRight screen
-      pickCorner(w, 0, -20, 20, tryLimit, positions);
+      pickCorner(w, 0, -pixelStep, pixelStep, tryLimit, positions);
 
       var viewRectangle;
       if (positions.length < 4) {
+        console.log("positions: ", positions);
         console.warn("using whole world extent");
         viewRectangle = Cesium.Rectangle.fromDegrees(-180, -90, 180, 90);
       } else {
@@ -117,16 +160,22 @@
         } else {
           // columbus
           console.log("columbus: positions: ", positions);
-          var west,
-            south,
-            east,
+          var west = 0,
+            south = 0,
+            east = 0,
             north = 0;
           positions.forEach(function(p) {
-            west = Math.min(p.lngLat.longitude, west);
-            south = Math.min(p.lngLat.latitude, south);
-            east = Math.max(p.lngLat.longitude, east);
-            north = Math.max(p.latitude);
+            west = Math.min(p.longitude, west);
+            south = Math.min(p.latitude, south);
+            east = Math.max(p.longitude, east);
+            north = Math.max(p.latitude, north);
           });
+          viewRectangle = Cesium.Rectangle.fromDegrees(
+            west,
+            south,
+            east,
+            north
+          );
         }
 
         // var topLeft = getTopLeftPosition(positions);
