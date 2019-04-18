@@ -1,8 +1,8 @@
-(function() {
+(function () {
   var turfIndex = Comlink.proxy(new Worker("turfIndex.js"));
   var viewer = new Cesium.Viewer("cesiumContainer", {
     mapProjection: new Cesium.GeographicProjection(),
-    // mapMode2D: Cesium.MapMode2D.ROTATE,
+    mapMode2D: Cesium.MapMode2D.ROTATE,
     timeline: false,
     geocoder: false,
     baseLayerPicker: false,
@@ -29,7 +29,7 @@
     }
   });
 
-  var cartesianToLngLat = function(cartesian) {
+  var cartesianToLngLat = function (cartesian) {
     if (cartesian) {
       var cartographic = Cesium.Cartographic.fromCartesian(
         cartesian,
@@ -44,7 +44,8 @@
     }
   };
 
-  var pickMap = function(x, y) {
+  var pickMap = function (x, y) {
+    drawPick(x, y);
     var cartesian = viewer.camera.pickEllipsoid(
       new Cesium.Cartesian2(x, y),
       viewer.scene.globe.ellipsoid
@@ -52,7 +53,7 @@
     return cartesian;
   };
 
-  var drawPick = function(x, y) {
+  var drawPick = function (x, y) {
     var can = document.createElement("canvas");
     var ctx = can.getContext("2d");
     can.width = 6;
@@ -67,16 +68,16 @@
     document.body.appendChild(can);
   };
 
-  var removePicks = function() {
+  var removePicks = function () {
     var picks = document.querySelectorAll(".xpick");
     if (picks) {
-      picks.forEach(function(p) {
+      picks.forEach(function (p) {
         p.remove();
       });
     }
   };
 
-  var pickCorner = function(x, y, xStep, yStep, tryLimit, positions) {
+  var pickCorner = function (x, y, xStep, yStep, tryLimit, positions) {
     var lx = x;
     var ly = y;
     var corner = pickMap(lx, ly);
@@ -89,22 +90,22 @@
       lx += xStep;
       corner = pickMap(lx, ly);
       if (corner) {
-        drawPick(lx, ly);
+        // drawPick(lx, ly);
         break;
       }
       var x1 = lx - xStep;
       corner = pickMap(x1, ly);
       if (corner) {
-        drawPick(x1, ly);
+        // drawPick(x1, ly);
         break;
       }
       var y1 = ly - yStep;
       corner = pickMap(lx, y1);
       if (corner) {
-        drawPick(x1, y1);
+        // drawPick(x1, y1);
         break;
       }
-      console.log("lx ly, x1, y1 = ", lx, ly, x1, y1);
+      // console.log("lx ly, x1, y1 = ", lx, ly, x1, y1);
       tryCount++;
     }
     if (corner) {
@@ -112,13 +113,45 @@
       corner.longitude = lngLat.longitude;
       corner.latitude = lngLat.latitude;
       positions.push(corner);
-      console.log("corner: ", corner);
+      // console.log("corner: ", corner);
       return true;
     }
     return false;
   };
 
-  var computeViewRectangle = function() {
+  var checkIfEdgeOfWorld = function (x, y, xStep, yStep, stepCount, positions) {
+    // var positions = [];
+    var counter = 0;
+    while (counter < stepCount) {
+      pickCorner(x, y, 0, 0, 1, positions);
+      x += xStep;
+      y += yStep;
+      counter++;
+    }
+    console.log("cps", positions);
+    // var lastCp;
+    // for (i = 0; i < crossPositions.length; i++) {
+    //   var cp = crossPositions[i];
+    //   if (lastCp) {
+    //     if ((lastCp.longitude < 0 && cp.longitude > 0) || (lastCp.longitude > 0 && cp.longitude < 0)) {
+    //       var diff = Math.abs(lastCp.longitude) + Math.abs(cp.longitude);
+    //       console.log("diff is:", diff, lastCp.longitude, cp.longitude)
+    //       if (diff > 180) {
+    //         console.warn("diff over 100")
+
+    //         return true;
+    //       }
+    //     }
+    //   }
+    //   lastCp = cp;
+    // }
+
+    // return false;
+  }
+
+
+
+  var computeViewRectangle = function () {
     try {
       var w = viewer.scene.canvas.clientWidth;
       var h = viewer.scene.canvas.clientHeight;
@@ -132,31 +165,52 @@
 
       removePicks();
 
-      var pixelStep = 20;
-      var tryLimit = Math.max(w, h) / pixelStep;
-      console.log("tryLimit: ", tryLimit);
-      // topLeft screen
-      pickCorner(0, 0, pixelStep, pixelStep, tryLimit, positions);
-      // bottomLeft screen
-      pickCorner(0, h, pixelStep, -pixelStep, tryLimit, positions);
-      // bottomRight screen
-      pickCorner(w, h, -pixelStep, -pixelStep, tryLimit, positions);
-      // topRight screen
-      pickCorner(w, 0, -pixelStep, pixelStep, tryLimit, positions);
+      // var pixelStep = 40;
+      // var tryLimit = Math.max(w, h) / pixelStep;
+      // console.log("tryLimit: ", tryLimit);
+      // // topLeft screen
+      // pickCorner(0, 0, pixelStep, pixelStep, tryLimit, positions);
+      // // bottomLeft screen
+      // pickCorner(0, h, pixelStep, -pixelStep, tryLimit, positions);
+      // // bottomRight screen
+      // pickCorner(w, h, -pixelStep, -pixelStep, tryLimit, positions);
+      // // topRight screen
+      // pickCorner(w, 0, -pixelStep, pixelStep, tryLimit, positions);
 
       var viewRectangle;
-      if (positions.length < 4) {
-        console.log("positions: ", positions);
-        console.warn("using whole world extent");
-        viewRectangle = Cesium.Rectangle.fromDegrees(-180, -90, 180, 90);
-      } else {
+      // if (positions.length < 4) {
+      //   console.log("positions: ", positions);
+      //   console.warn("using whole world extent");
+      //   viewRectangle = Cesium.Rectangle.fromDegrees(-180, -90, 180, 90);
+      // } else {
         if (Cesium.SceneMode.SCENE2D === viewer.scene.mode) {
-          if (viewer.scene.mapMode2D === Cesium.MapMode2D.ROTATE) {
-            // camera could be rotated
-          } else {
-            // world wraps, camera CANT rotate
-            console.warn("wrapping occurs");
-          }
+          var stepCount = 20;
+          var xStep = w / stepCount;
+          var yStep = h / stepCount
+          var coordPositions = [];
+          checkIfEdgeOfWorld(0, 0, xStep, yStep, stepCount, coordPositions);
+          checkIfEdgeOfWorld(0, h, xStep, -yStep, stepCount, coordPositions);
+          checkIfEdgeOfWorld(w / 2, 0, 0, yStep, stepCount, coordPositions);
+          checkIfEdgeOfWorld(0, h / 2, xStep, 0, stepCount, coordPositions);
+          var west = 0,
+            south = 0,
+            east = 0,
+            north = 0;
+          coordPositions.forEach(function (p) {
+            west = Math.min(p.longitude, west);
+            south = Math.min(p.latitude, south);
+            east = Math.max(p.longitude, east);
+            north = Math.max(p.latitude, north);
+          });
+          viewRectangle = Cesium.Rectangle.fromDegrees(
+            west,
+            south,
+            east,
+            north
+          );
+
+
+
         } else {
           // columbus
           console.log("columbus: positions: ", positions);
@@ -164,7 +218,7 @@
             south = 0,
             east = 0,
             north = 0;
-          positions.forEach(function(p) {
+          positions.forEach(function (p) {
             west = Math.min(p.longitude, west);
             south = Math.min(p.latitude, south);
             east = Math.max(p.longitude, east);
@@ -180,7 +234,7 @@
 
         // var topLeft = getTopLeftPosition(positions);
         // console.log("topLeft: ", topLeft);
-      }
+      // }
       console.log("computeViewRectangle: viewRectangle: ", viewRectangle);
       return viewRectangle;
     } catch (ex) {
@@ -188,11 +242,11 @@
     }
   };
 
-  var addVisibleLabels = function(ids) {
+  var addVisibleLabels = function (ids) {
     labels.removeAll();
     console.log("visible ids: ", ids.length);
     var currentTime = viewer.clock.currentTime;
-    ids.forEach(function(id) {
+    ids.forEach(function (id) {
       var ent = viewer.entities.getById(id);
       if (ent && ent.xLabel) {
         var label = Object.assign({}, ent.xLabel, {
@@ -203,7 +257,7 @@
     });
   };
 
-  viewer.camera.moveEnd.addEventListener(function() {
+  viewer.camera.moveEnd.addEventListener(function () {
     if (Cesium.SceneMode.MORPHING === viewer.scene.mode) {
       // stop it
       return;
@@ -228,12 +282,12 @@
     }
   });
 
-  var getRandomInRange = function(from, to, fixed) {
+  var getRandomInRange = function (from, to, fixed) {
     return (Math.random() * (to - from) + from).toFixed(fixed) * 1;
     // .toFixed() returns string, so ' * 1' is a trick to convert to number
   };
 
-  var populate = function() {
+  var populate = function () {
     var pixelOffset = new Cesium.Cartesian2(0, -8);
     viewer.entities.suspendEvents();
     var entityMap = {};
@@ -284,7 +338,7 @@
   });
 
   var handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-  handler.setInputAction(function(movement) {
+  handler.setInputAction(function (movement) {
     var cartesian = viewer.camera.pickEllipsoid(
       movement.endPosition,
       viewer.scene.globe.ellipsoid
