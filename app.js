@@ -56,27 +56,23 @@
     var lx = x;
     var ly = y;
     var corner = pickMap(lx, ly);
-    var tryCount = 0;
+    var tryCount = 1;
     while (!corner) {
+      if (tryCount >= tryLimit) {
+        break;
+      }
       ly += yStep;
-      corner = pickMap(x, ly);
+      corner = pickMap(lx, ly);
       if (!corner) {
         lx += xStep;
-        corner = pickMap(lx, y);
-      }
-      if (!corner) {
         corner = pickMap(lx, ly);
       }
       tryCount++;
-      if (tryCount > tryLimit) {
-        break;
-      }
     }
-    console.log("corner: ", lx, ly, corner);
     if (corner) {
-      var cartesian = corner;
-      corner = cartesianToLngLat(corner);
-      corner.cartesian = cartesian;
+      var lngLat = cartesianToLngLat(corner);
+      corner.longitude = lngLat.longitude;
+      corner.latitude = lngLat.latitude;
       positions.push(corner);
       console.log("corner: ", corner);
       return true;
@@ -117,27 +113,24 @@
           } else {
             // world wraps, camera CANT rotate
             console.warn("wrapping occurs");
-
-            // TODO check if topLeft is topLeft
-            var topLeft = positions[0];
-            var topRight = positions[3];
-            if (topLeft.longitude > 100 && topRight.longitude < 100) {
-              console.warn("crosses edge of world");
-            }
           }
         } else {
           // columbus
+          console.log("columbus: positions: ", positions);
+          var west,
+            south,
+            east,
+            north = 0;
+          positions.forEach(function(p) {
+            west = Math.min(p.lngLat.longitude, west);
+            south = Math.min(p.lngLat.latitude, south);
+            east = Math.max(p.lngLat.longitude, east);
+            north = Math.max(p.latitude);
+          });
         }
 
         // var topLeft = getTopLeftPosition(positions);
         // console.log("topLeft: ", topLeft);
-        console.log("positions: ", positions);
-        viewRectangle = Cesium.Rectangle.fromCartesianArray(
-          positions.map(function(p) {
-            return p.cartesian;
-          }),
-          viewer.scene.globe.ellipsoid
-        );
       }
       console.log("computeViewRectangle: viewRectangle: ", viewRectangle);
       return viewRectangle;
