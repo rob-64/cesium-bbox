@@ -33,7 +33,7 @@
     var opts = { ignoreBoundary: true };
     entList.forEach(function(e) {
       var ptVisible = turf.booleanPointInPolygon(e.point, view1, opts);
-      // console.log("ptVisible: ", e, ptVisible);
+      console.debug("ptVisible: ", e, ptVisible);
       if (ptVisible) {
         visible.push(e.id);
       } else if (view2) {
